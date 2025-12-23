@@ -105,15 +105,29 @@ let updatePassword = async(req,res)=>{
    res.send("Password changed successfully...");
 }
 
-let OTP;
-let passwordReset = (req,res) =>{
-    OTP = Math.round(Math.random()*10000);
+
+let passwordReset = async(req,res) =>{
+
+    let {email} = req.body;
+
+    let result = await user.findOne({email});
+
+    if(!result)
+    {
+        return res.send("Email Not Registered");
+    }
+
+    let OTP = Math.round(Math.random()*10000);
+
+    req.session.resetOTP = OTP;
+    req.session.resetUserId = result._id;
+
     let mail = mailer();
 
     let mailOptions =
     {
         from:"rwr2.aryan.bs@gmail.com",
-        to: req.body.email,
+        to: email,
         subject: "Password Reset OTP",
         text:`Reset OTP: ${OTP}`
     }
@@ -131,18 +145,30 @@ let passwordReset = (req,res) =>{
     res.send("OTP Sent successfully, Check your email");
 }
 
-const verify = (req,res) =>
+const verify = async(req,res) =>
 {
-   let token =  req.body.otp;
+   let {otp} = req.body;
 
-   if(token == OTP)
+   if(otp != req.session.resetOTP)
    {
-        res.redirect("index");
+    return res.send("Invalid OTP");
    }
-   else
-   {
-        res.redirect("forgot");
-   }
+
+   let userData = await user.findById(req.session.resetUserId);
+
+   // Auto Login User
+
+   req.login(userData, (err)=>{
+    if(err)
+    {
+        return res.send("Login Failed");
+    }
+
+    req.session.resetOTP = null;
+    req.session.resetUserId = null;
+
+    res.redirect("/");
+   })
 }
 
 const getForgot = ( req,res)=>{
